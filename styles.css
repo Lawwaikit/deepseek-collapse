@@ -1,0 +1,57 @@
+.ds-collapse-btn {
+  position: absolute;
+  right: 20px;
+  top: 10px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 10;
+  color: #666;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.ds-collapse-btn:hover {
+  background: rgba(0, 0, 0, 0.2);
+  color: #333;
+}
+
+/* .ds-collapsed .ds-message-content {
+  max-height: 60px !important;
+  overflow: hidden !important;
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+} */
+/* 修改为更具体的选择器 */
+.ds-collapsed [class*="ds-markdown"] {
+  max-height: 60px !important;
+  overflow: hidden !important;
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
+}
+
+.ds-collapse-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  padding: 5px;
+  background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.05));
+  font-size: 12px;
+  color: #666;
+}
+/* 增加CSS特异性 */
+[class*="ds-markdown"].ds-collapsed,
+.ds-collapsed [class*="ds-markdown"] {
+  max-height: 60px !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+/* 添加过渡效果 */
+[class*="ds-markdown"] {
+  transition: max-height 0.3s ease-out;
+}
