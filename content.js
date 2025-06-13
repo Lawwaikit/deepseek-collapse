@@ -37,21 +37,6 @@ async function getCollapseState(id) {
   });
 }
 
-// // 生成基于内容hash的稳定ID
-// function generateStableId(element) {
-//   const content = element.textContent.trim();
-//   if (!content) return DS_PREFIX + Math.random().toString(36).substr(2, 9);
-
-//   // 创建内容hash
-//   let hash = 0;
-//   for (let i = 0; i < content.length; i++) {
-//     const char = content.charCodeAt(i);
-//     hash = ((hash << 5) - hash) + char;
-//     hash |= 0; // Convert to 32bit integer
-//   }
-
-//   return DS_PREFIX + Math.abs(hash).toString(36);
-// }
 
 // 更新ID生成逻辑
 function generateMessageId(element) {
@@ -62,7 +47,7 @@ function generateMessageId(element) {
     return `${DS_PREFIX}user-${index}`;
   }
   else {
-    // AI消息：保持原来的内容hash
+    // AI消息：使用内容hash
     const content = element.textContent.trim();
     if (!content) return DS_PREFIX + Math.random().toString(36).substr(2, 9);
     // 创建内容hash
@@ -72,10 +57,7 @@ function generateMessageId(element) {
       hash = ((hash << 5) - hash) + char;
       hash |= 0; // Convert to 32bit integer
     }
-
     return DS_PREFIX + Math.abs(hash).toString(36);
-
-    // return generateStableId(element);
   }
 }
 
@@ -83,74 +65,33 @@ function generateMessageId(element) {
 function isUserMessage(element) {
   // 方法1：检查特定class（即使看起来随机但实际稳定）
   if (element.classList.contains('fbb737a4')) return true;
-
-  // // 方法2：检查父级结构特征
-  // const parent = element.closest('[class*="user-message"], [class*="human-message"]');
-  // if (parent) return true;
-
-  // // 方法3：检查内容特征
-  // const content = element.textContent.trim();
-  // if (content.startsWith('You:') || content.startsWith('User:')) return true;
-
   return false;
 }
 
 function findMessageElements() {
   // 用户问题选择器 (根据您提供的class)
   const userMessages = document.querySelectorAll('.fbb737a4');
-
-  // AI回答选择器 (保持原有)
+  // AI回答选择器
   const aiMessages = document.querySelectorAll('[class*="ds-markdown ds-markdown--block"]');
-
   // 合并两个NodeList
   return [...userMessages, ...aiMessages];
 }
 
 // 为消息添加折叠按钮
 async function addCollapseButton(messageElement) {
-  // 确保获取的是最外层容器
-  // const container = messageElement.closest('[class*="message-container"]') || messageElement;
-
   // 确保是有效元素
   if (!messageElement || !messageElement.textContent.trim()) return;
 
   // 检查是否已经添加过按钮
   if (messageElement.querySelector(`.${DS_PREFIX}btn`)) return;
 
-  // 判断消息类型
-  // const isUserMessage = isUserMessage(messageElement);
-
-  // // 确保元素有ID，如果没有则生成一个
-  // if (!messageElement.id) {
-  //   messageElement.id = DS_PREFIX + Date.now() + Math.random().toString(36).substr(2, 9);
-  // }
-
-  // // 使用稳定ID
-  // if (!messageElement.id) {
-  //   messageElement.id = generateStableId(messageElement);
-  // }
-
-  // 生成稳定ID (用户消息使用固定class，AI消息使用内容hash)
-  // if (!messageElement.id) {
-  //   messageElement.id = isUserMessage 
-  //     ? `${DS_PREFIX}user-${Array.from(messageElement.classList).join('-')}`
-  //     : generateStableId(messageElement);
-  // }
-
   messageElement.id = messageElement.id || generateMessageId(messageElement);
-  console.log('Adding button to:', messageElement.id, isUserMessage(messageElement) ? 'USER' : 'AI');
 
   // 创建折叠按钮
   const btn = document.createElement('button');
   btn.className = `${DS_PREFIX}btn`;
   btn.textContent = '折叠';
   btn.dataset.targetId = messageElement.id;
-
-  //   // 如果是用户消息，添加额外类名
-  // if (isUserMessage) {
-  //   btn.classList.add(`${DS_PREFIX}user-btn`);
-  //   messageElement.classList.add('user-message');
-  // }
 
   // 添加到消息元素
   messageElement.style.position = 'relative';
@@ -163,9 +104,6 @@ async function addCollapseButton(messageElement) {
   if (isCollapsed) {
     toggleCollapse(messageElement, true);
   }
-  // else {
-  //   btn.textContent = '折叠';
-  // }
 
   // 添加点击事件
   btn.addEventListener('click', async function (e) {
@@ -177,11 +115,10 @@ async function addCollapseButton(messageElement) {
       console.error('Target element not found');
       return;
     }
-    //isCollapsed 当前折叠状态 newCollapsed 新折叠状态
+    //isCollapsed 当前折叠状态
     const isCollapsed = targetElement.classList.contains(`${DS_PREFIX}collapsed`);
-    const newCollapsed = !isCollapsed
-    toggleCollapse(targetElement, newCollapsed);
-    await setCollapseState(targetElement.id, newCollapsed);
+    toggleCollapse(targetElement, !isCollapsed);
+    await setCollapseState(targetElement.id, !isCollapsed);
   });
 }
 
@@ -192,20 +129,11 @@ function toggleCollapse(element, newCollapse) {
 
   const btn = element.querySelector(`.${DS_PREFIX}btn`);
   if (!btn) return;
-  // const isUserMessage = element.classList.contains('user-message');
-  // const isUserMessage = isUserMessage(element)
 
   if (newCollapse) { // 需要变成折叠状态
     element.classList.add(`${DS_PREFIX}collapsed`, 'ds-collapsed');
     btn.textContent = '展开';
     console.log('Element after adding classes:', element.classList);
-
-    // 添加用户消息特有的折叠类
-    if (isUserMessage(element)) {
-      element.classList.add('ds-collapsed-user');
-    } else {
-      element.classList.add('ds-collapsed');
-    }
 
     // 添加折叠指示器
     if (!element.querySelector(`.${DS_PREFIX}indicator`)) {
@@ -216,16 +144,12 @@ function toggleCollapse(element, newCollapse) {
     }
   }
   else {
-    element.classList.remove(`${DS_PREFIX}collapsed`, 'ds-collapsed', 'ds-collapsed-user');
+    element.classList.remove(`${DS_PREFIX}collapsed`, 'ds-collapsed');
     btn.textContent = '折叠';
 
     // 移除折叠指示器
     const indicator = element.querySelector(`.${DS_PREFIX}indicator`);
     if (indicator) indicator.remove();
-
-    // 调试样式应用情况
-    console.log('Current display style:', window.getComputedStyle(element).display);
-    console.log('Current max-height:', window.getComputedStyle(element).maxHeight);
   }
 
   // 保存状态
@@ -237,20 +161,13 @@ function toggleCollapse(element, newCollapse) {
 
 // 初始化观察器
 function initObserver() {
-  console.log('Setting up MutationObserver');
-
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
           // 使用确认的选择器
-          const messages = node.querySelectorAll ?
-            node.querySelectorAll('[class*="ds-markdown ds-markdown--block"]') : [];
-
-          messages.forEach(msg => {
-            console.log('New message element detected', msg);
-            addCollapseButton(msg);
-          });
+          const messages = node.querySelectorAll('.fbb737a4 [class*="ds-markdown ds-markdown--block"]');
+          messages.forEach(addCollapseButton);
         }
       });
     });
@@ -282,7 +199,6 @@ async function init() {
 
   const checkContainer = setInterval(() => {
     // 使用您确认的正确选择器
-    // const messages = document.querySelectorAll('[class*="ds-markdown ds-markdown--block"]');
     const messages = findMessageElements();
     attempts++;
 
