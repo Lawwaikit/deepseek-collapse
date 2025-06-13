@@ -18,16 +18,31 @@
   color: #333;
 }
 
+/* 用户消息折叠按钮样式 */
+/* .user-message .ds-collapse-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.user-message .ds-collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+} */
+
 /* .ds-collapsed .ds-message-content {
   max-height: 60px !important;
   overflow: hidden !important;
   mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
 } */
+
 /* 修改为更具体的选择器 */
-.ds-collapsed [class*="ds-markdown"] {
+/* [class*="ds-markdown"].ds-collapsed,
+.ds-collapsed [class*="ds-markdown"]  */
+.ds-collapsed
+{
   max-height: 60px !important;
   overflow: hidden !important;
+  position: relative !important;
   mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
   -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
 }
@@ -43,15 +58,33 @@
   font-size: 12px;
   color: #666;
 }
+
 /* 增加CSS特异性 */
-[class*="ds-markdown"].ds-collapsed,
+/* [class*="ds-markdown"].ds-collapsed,
 .ds-collapsed [class*="ds-markdown"] {
   max-height: 60px !important;
   overflow: hidden !important;
   position: relative !important;
-}
+} */
 
 /* 添加过渡效果 */
-[class*="ds-markdown"] {
+/* [class*="ds-markdown"] {
   transition: max-height 0.3s ease-out;
+} */
+
+/* 用户消息折叠效果 */
+.ds-collapsed-user {
+  max-height: 60px !important;
+  overflow: hidden !important;
+  position: relative !important;
+    mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
+
 }
+
+/* 用户消息折叠样式 */
+.user-message .ds-collapsed {
+  max-height: 60px !important;
+  padding-bottom: 20px !important;
+}
+
