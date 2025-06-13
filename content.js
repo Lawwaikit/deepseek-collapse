@@ -17,7 +17,6 @@ async function setCollapseState(id, isCollapsed) {
     // 保存新状态
     await new Promise(resolve => {
       chrome.storage.local.set({ dsCollapseStates: newState }, () => {
-        // console.log('State saved:', newState);
         resolve();
       });
     });
@@ -31,7 +30,6 @@ async function getCollapseState(id) {
   return new Promise(resolve => {
     chrome.storage.local.get(['dsCollapseStates'], result => {
       const states = result.dsCollapseStates || {};
-      // console.log('Loaded states:', states);
       resolve(states[id] || false);
     });
   });
@@ -97,9 +95,28 @@ async function addCollapseButton(messageElement) {
   messageElement.style.position = 'relative';
   messageElement.appendChild(btn);
 
+    // 如果是AI回答，添加底部按钮
+  // if (!isUserMessage(messageElement)) {
+  //   const bottomBtn = document.createElement('button');
+  //   bottomBtn.className = `${DS_PREFIX}btn ds-collapse-btn-bottom`;
+  //   bottomBtn.textContent = '折叠';
+  //   bottomBtn.dataset.targetId = messageElement.id;
+  //   messageElement.appendChild(bottomBtn);
+    
+  //   // 底部按钮点击事件
+  //   bottomBtn.addEventListener('click', async (e) => {
+  //     e.stopPropagation();
+  //     const targetElement = document.getElementById(e.target.dataset.targetId);
+  //     if (!targetElement) return;
+      
+  //     const shouldCollapse = !targetElement.classList.contains(`${DS_PREFIX}collapsed`);
+  //     toggleCollapse(targetElement, shouldCollapse);
+  //     await setCollapseState(targetElement.id, shouldCollapse);
+  //   });
+  // }
+
   // 恢复状态
   const isCollapsed = await getCollapseState(messageElement.id);
-  console.log(`Restoring state for ${messageElement.id}:`, isCollapsed);
   // 如果恢复的状态是折叠,立马折叠
   if (isCollapsed) {
     toggleCollapse(messageElement, true);
@@ -108,7 +125,6 @@ async function addCollapseButton(messageElement) {
   // 添加点击事件
   btn.addEventListener('click', async function (e) {
     e.stopPropagation();
-    // console.log('Button clicked on:', this.dataset.targetId); // 调试日志
     const targetId = this.dataset.targetId;
     const targetElement = document.getElementById(targetId);
     if (!targetElement) {
@@ -123,16 +139,17 @@ async function addCollapseButton(messageElement) {
 }
 
 // 切换折叠状态
-function toggleCollapse(element, newCollapse) {
-  console.log(`Toggling collapse: ${newCollapse}`, element);
-  console.log('Before classes:', element.classList.toString());
+function toggleCollapse(element, shouldCollapse) {
+  // const btn = element.querySelector(`.${DS_PREFIX}btn`);
+  // if (!btn) return;
+  const buttons = element.querySelectorAll(`.${DS_PREFIX}btn, .${DS_PREFIX}btn-bottom`);
+  buttons.forEach(btn => {
+    btn.textContent = shouldCollapse ? '展开' : '折叠';
+  });
 
-  const btn = element.querySelector(`.${DS_PREFIX}btn`);
-  if (!btn) return;
-
-  if (newCollapse) { // 需要变成折叠状态
+  if (shouldCollapse) { // 需要变成折叠状态
     element.classList.add(`${DS_PREFIX}collapsed`, 'ds-collapsed');
-    btn.textContent = '展开';
+    // btn.textContent = '展开';
     console.log('Element after adding classes:', element.classList);
 
     // 添加折叠指示器
@@ -145,7 +162,7 @@ function toggleCollapse(element, newCollapse) {
   }
   else {
     element.classList.remove(`${DS_PREFIX}collapsed`, 'ds-collapsed');
-    btn.textContent = '折叠';
+    // btn.textContent = '折叠';
 
     // 移除折叠指示器
     const indicator = element.querySelector(`.${DS_PREFIX}indicator`);
@@ -153,10 +170,7 @@ function toggleCollapse(element, newCollapse) {
   }
 
   // 保存状态
-  setCollapseState(element.id, newCollapse);
-
-  console.log('After classes:', element.classList.toString());
-  console.log('Computed style:', window.getComputedStyle(element).maxHeight);
+  setCollapseState(element.id, shouldCollapse);
 }
 
 // 初始化观察器
@@ -191,8 +205,6 @@ async function init() {
       resolve(result.dsCollapseStates || {});
     });
   });
-  console.log('All stored states:', allStates);
-
   // 设置重试机制
   const maxAttempts = 10;
   let attempts = 0;
