@@ -2,7 +2,7 @@
 
 /* 父级容器样式 */
 ._9663006,
-._4f9bf79{
+._4f9bf79 {
   position: relative;
   padding-right: 58px;
 }
@@ -25,18 +25,19 @@
   margin: 0;
   white-space: nowrap;
 }
+
 .ds-collapse-btn:hover {
   background: rgba(0, 0, 0, 0.2);
   color: #333;
 }
 
-/* 折叠内容样式 */ 
+/* 折叠内容样式 */
 .ds-collapsed {
   max-height: 60px !important;
   overflow: hidden !important;
   mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
   -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%) !important;
-} 
+}
 
 /* 调整折叠指示器样式 */
 .ds-collapse-indicator {
@@ -46,7 +47,9 @@
   right: 0;
   text-align: center;
   padding: 5px;
-  background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.05));
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.05));
   font-size: 12px;
   color: #666;
+  pointer-events: none;
+  /* 允许点击穿透 */
 }
