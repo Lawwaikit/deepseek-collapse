@@ -125,6 +125,9 @@ async function addCollapseButton(messageElement) {
     toggleCollapse(targetElement, !isCollapsed);
     await setCollapseState(targetElement.id, !isCollapsed);
   });
+
+  // 在按钮组中添加折叠动作按钮
+  addCollapseActionButton(parentContainer, messageElement);
 }
 
 // 切换折叠状态
@@ -135,12 +138,23 @@ function toggleCollapse(element, shouldCollapse) {
   const parent = element.closest(`.${USER_PARENT_CLASS}, .${AI_PARENT_CLASS}`);
   console.log('Before classes:', element.classList.toString());
   // 获取按钮
-  const btn = parent.querySelector(`.${DS_PREFIX}btn`);
-  if (!btn) return;
+  const topBtn = parent.querySelector(`.${DS_PREFIX}btn`);
+  const actionBtn = parent.querySelector(`.${DS_PREFIX}action-btn`);
+  if (!topBtn) return;
 
   if (shouldCollapse) { // 需要变成折叠状态
     element.classList.add(`${DS_PREFIX}collapsed`, 'ds-collapsed');
-    btn.textContent = '展开';
+    topBtn.textContent = '展开';
+
+
+    if (actionBtn) {
+      actionBtn.classList.add('collapsed');
+      actionBtn.title = '展开';
+      actionBtn.querySelector('svg').innerHTML = `
+        <path d="M19 13H5v-2h14v2z" fill="currentColor"/>
+        <path d="M13 19v-14h-2v14h2z" fill="currentColor"/>
+      `;
+    }
 
     if (!parent.querySelector(`.${DS_PREFIX}indicator`)) {
       const indicator = document.createElement('div');
@@ -150,9 +164,16 @@ function toggleCollapse(element, shouldCollapse) {
     }
   }
   else {
-    element.classList.remove(`${DS_PREFIX}collapsed`, 'ds-collapsed', 'ds-collapsed-user');
-    btn.textContent = '折叠';
+    element.classList.remove(`${DS_PREFIX}collapsed`, 'ds-collapsed');
+    topBtn.textContent = '折叠';
 
+    if (actionBtn) {
+      actionBtn.classList.remove('collapsed');
+      actionBtn.title = '折叠';
+      actionBtn.querySelector('svg').innerHTML = `
+        <path d="M19 13H5v-2h14v2z" fill="currentColor"/>
+      `;
+    }
     // 移除折叠指示器
     const indicator = parent.querySelector(`.${DS_PREFIX}indicator`);
     if (indicator) indicator.remove();
@@ -162,6 +183,50 @@ function toggleCollapse(element, shouldCollapse) {
   setCollapseState(element.id, shouldCollapse);
 
   console.log('After classes:', element.classList.toString());
+}
+
+// 在按钮组中添加折叠按钮
+function addCollapseActionButton(parentElement, messageElement) {
+  const isUser = isUserMessage(messageElement)
+  const buttonGroup = isUser ? parentElement.querySelector('._78e0558') : parentElement.querySelector('._965abe9');
+  if (!buttonGroup || buttonGroup.querySelector(`.${DS_PREFIX}action-btn`)) return;
+
+  // 创建折叠按钮
+  const collapseBtn = document.createElement('div');
+  collapseBtn.className = `${DS_PREFIX}action-btn ds-icon-button`;
+  collapseBtn.tabIndex = 0;
+  if (isUser) collapseBtn.style.marginLeft = '14px'
+  collapseBtn.title = '折叠';
+  collapseBtn.innerHTML = `
+    <div class="ds-icon" style="font-size: 20px; width: 20px; height: 20px;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 13H5v-2h14v2z" fill="currentColor"/>
+      </svg>
+    </div>
+  `;
+
+  // 添加到按钮组
+  buttonGroup.appendChild(collapseBtn);
+
+  // 点击事件
+  collapseBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const shouldCollapse = !messageElement.classList.contains(`${DS_PREFIX}collapsed`);
+    toggleCollapse(messageElement, shouldCollapse);
+    await setCollapseState(messageElement.id, shouldCollapse);
+  });
+
+  // 初始状态
+  getCollapseState(messageElement.id).then(isCollapsed => {
+    if (isCollapsed) {
+      collapseBtn.classList.add('collapsed');
+      collapseBtn.title = '展开';
+      collapseBtn.querySelector('svg').innerHTML = `
+        <path d="M19 13H5v-2h14v2z" fill="currentColor"/>
+        <path d="M13 19v-14h-2v14h2z" fill="currentColor"/>
+      `;
+    }
+  });
 }
 
 // 初始化观察器
@@ -175,7 +240,21 @@ function initObserver() {
           // 使用确认的选择器
           const messages = node.querySelectorAll(`.${USER_MESSAGE_CLASS},.${AI_MESSAGE_CLASS}`);
           messages.forEach(msg => {
-            addCollapseButton(msg);
+            const parent = msg.closest('._9663006, ._4f9bf79');
+            if (parent) {
+              addCollapseButton(msg);
+              // 延迟确保按钮组已加载
+              setTimeout(() => addCollapseActionButton(parent, msg), 100);
+            }
+          });
+          // 处理单独动态加载的按钮组
+          const buttonGroups = node.querySelectorAll?.('.ds-flex') || [];
+          buttonGroups.forEach(btnGroup => {
+            const parent = btnGroup.closest('._9663006, ._4f9bf79');
+            const message = parent?.querySelector('.fbb737a4, [class*="ds-markdown ds-markdown--block"]');
+            if (parent && message && !btnGroup.querySelector(`.${DS_PREFIX}action-btn`)) {
+              addCollapseActionButton(parent, message);
+            }
           });
         }
       });

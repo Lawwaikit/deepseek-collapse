@@ -53,3 +53,14 @@
   pointer-events: none;
   /* 允许点击穿透 */
 }
+
+/* 折叠按钮在按钮组中的样式 */
+.ds-collapse-action-btn {
+  --ds-icon-button-text-color: #909090;
+  --ds-icon-button-size: 20px;
+  color: var(--ds-icon-button-text-color);
+}
+
+.ds-collapse-action-btn.collapsed {
+  --ds-icon-button-text-color: #1a73e8; /* 折叠状态下的颜色 */
+}
