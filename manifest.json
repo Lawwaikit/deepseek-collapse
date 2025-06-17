@@ -10,12 +10,47 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.deepseek.com/*"],
-      "js": ["content.js"],
-      "css": ["styles.css"],
+      "matches": [
+        "*://*.deepseek.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
       "run_at": "document_end"
     }
   ],
-  "permissions": ["storage"],
-  "host_permissions": ["*://*.deepseek.com/*"]
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "commands",
+    "activeTab"
+  ],
+  "commands": {
+    "collapse-all": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Z",
+        "mac": "Command+Shift+Z",
+        "chromeos": "Ctrl+Shift+Z",
+        "linux": "Ctrl+Shift+Z"
+      },
+      "description": "折叠所有消息"
+    },
+    "expand-all": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+X",
+        "mac": "Command+Shift+X",
+        "chromeos": "Ctrl+Shift+X",
+        "linux": "Ctrl+Shift+X"
+      },
+      "description": "展开所有消息"
+    }
+  },
+  "host_permissions": [
+    "*://*.deepseek.com/*"
+  ]
 }

@@ -4,7 +4,8 @@ const USER_PARENT_CLASS = '_9663006'
 const USER_MESSAGE_CLASS = 'fbb737a4'
 const AI_PARENT_CLASS = '_4f9bf79'
 const AI_MESSAGE_CLASS = 'ds-markdown'
-
+// 深度思考组件的选择器
+const DEEP_THINKING_CLASS = '_58a6d71';
 
 // 增强的存储折叠状态函数
 async function setCollapseState(id, isCollapsed) {
@@ -93,7 +94,6 @@ async function addCollapseButton(messageElement) {
 
 
   messageElement.id = messageElement.id || generateMessageId(messageElement);
-  console.log('Adding button to:', messageElement.id, isUser ? 'USER' : 'AI');
 
   // 创建折叠按钮
   const btn = document.createElement('button');
@@ -108,7 +108,7 @@ async function addCollapseButton(messageElement) {
   const isCollapsed = await getCollapseState(messageElement.id);
   // 如果恢复的状态是折叠,立马折叠
   if (isCollapsed) {
-    toggleCollapse(messageElement, true);
+    toggleCollapse(messageElement, true, true);
   }
 
   // 添加点击事件
@@ -131,12 +131,11 @@ async function addCollapseButton(messageElement) {
 }
 
 // 切换折叠状态
-function toggleCollapse(element, shouldCollapse) {
+function toggleCollapse(element, shouldCollapse, skipSave = false) {
   // 判断消息类型
   const isUser = isUserMessage(element);
   // 获取父级容器
   const parent = element.closest(`.${USER_PARENT_CLASS}, .${AI_PARENT_CLASS}`);
-  console.log('Before classes:', element.classList.toString());
   // 获取按钮
   const topBtn = parent.querySelector(`.${DS_PREFIX}btn`);
   const actionBtn = parent.querySelector(`.${DS_PREFIX}action-btn`);
@@ -146,7 +145,6 @@ function toggleCollapse(element, shouldCollapse) {
     element.classList.add(`${DS_PREFIX}collapsed`, 'ds-collapsed');
     topBtn.textContent = '展开';
 
-
     if (actionBtn) {
       actionBtn.classList.add('collapsed');
       actionBtn.title = '展开';
@@ -155,7 +153,7 @@ function toggleCollapse(element, shouldCollapse) {
         <path d="M13 19v-14h-2v14h2z" fill="currentColor"/>
       `;
     }
-
+    // 添加折叠指示器
     if (!parent.querySelector(`.${DS_PREFIX}indicator`)) {
       const indicator = document.createElement('div');
       indicator.className = `${DS_PREFIX}indicator ds-collapse-indicator`;
@@ -178,11 +176,10 @@ function toggleCollapse(element, shouldCollapse) {
     const indicator = parent.querySelector(`.${DS_PREFIX}indicator`);
     if (indicator) indicator.remove();
   }
-
-  // 保存状态
-  setCollapseState(element.id, shouldCollapse);
-
-  console.log('After classes:', element.classList.toString());
+  // 跳过保存以提高批量操作性能
+  if (!skipSave) {
+    setCollapseState(element.id, shouldCollapse);
+  }
 }
 
 // 在按钮组中添加折叠按钮
@@ -229,10 +226,64 @@ function addCollapseActionButton(parentElement, messageElement) {
   });
 }
 
+// 显示一键折叠toast
+function showFeedback(message) {
+  const existing = document.querySelector('.ds-collapse-feedback');
+  if (existing) existing.remove();
+
+  const feedback = document.createElement('div');
+  feedback.className = 'ds-collapse-feedback';
+  feedback.textContent = message;
+  document.body.appendChild(feedback);
+
+  setTimeout(() => feedback.remove(), 2000);
+}
+
+// 一键折叠/展开消息
+async function toggleAllMessages(shouldCollapse) {
+  showFeedback(shouldCollapse ? '已折叠所有消息和深度思考' : '已展开所有消息');
+  const messages = findMessageElements()
+
+  // 先执行UI更新
+  messages.forEach(message => {
+    toggleCollapse(message, shouldCollapse, true); // 跳过单独保存
+  });
+
+  // 批量保存状态
+  const states = {};
+  messages.forEach(message => {
+    if (message.id) {
+      states[message.id] = shouldCollapse;
+    }
+  });
+  if (shouldCollapse) {
+    // 深度思考组件
+    const deepThinkingComponents = document.querySelectorAll(`.${DEEP_THINKING_CLASS}`);
+    deepThinkingComponents.forEach(component => {
+      // 找到箭头
+      var arrowEle = component.querySelector('._54f4262')
+      if (arrowEle) {
+        ///180是深度思考展开状态,0为折叠
+        const isCollapse = arrowEle.style.transform != 'rotate(180deg)'
+        if (!isCollapse) {
+          component.click()
+        }
+      }
+
+    });
+  }
+
+  await new Promise(resolve => {
+    chrome.storage.local.set({ dsCollapseStates: states }, () => {
+      resolve();
+    });
+  });
+}
+
 // 初始化观察器
 function initObserver() {
   console.log('Setting up MutationObserver');
-
+  let observerDebounce;
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
@@ -240,22 +291,22 @@ function initObserver() {
           // 使用确认的选择器
           const messages = node.querySelectorAll(`.${USER_MESSAGE_CLASS},.${AI_MESSAGE_CLASS}`);
           messages.forEach(msg => {
-            const parent = msg.closest('._9663006, ._4f9bf79');
+            const parent = msg.closest(`.${USER_PARENT_CLASS}, .${AI_PARENT_CLASS}`);
             if (parent) {
               addCollapseButton(msg);
               // 延迟确保按钮组已加载
               setTimeout(() => addCollapseActionButton(parent, msg), 100);
             }
           });
-          // 处理单独动态加载的按钮组
-          const buttonGroups = node.querySelectorAll?.('.ds-flex') || [];
-          buttonGroups.forEach(btnGroup => {
-            const parent = btnGroup.closest('._9663006, ._4f9bf79');
-            const message = parent?.querySelector('.fbb737a4, [class*="ds-markdown ds-markdown--block"]');
-            if (parent && message && !btnGroup.querySelector(`.${DS_PREFIX}action-btn`)) {
-              addCollapseActionButton(parent, message);
-            }
-          });
+          // // 处理单独动态加载的按钮组
+          // const buttonGroups = node.querySelectorAll?.('.ds-flex') || [];
+          // buttonGroups.forEach(btnGroup => {
+          //   const parent = btnGroup.closest(`.${USER_PARENT_CLASS}, .${AI_PARENT_CLASS}`);
+          //   const message = parent?.querySelector(`.${USER_MESSAGE_CLASS},.${AI_MESSAGE_CLASS}`);
+          //   if (parent && message && !btnGroup.querySelector(`.${DS_PREFIX}action-btn`)) {
+          //     addCollapseActionButton(parent, message);
+          //   }
+          // });
         }
       });
     });
@@ -314,3 +365,15 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// 添加消息监听
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  switch (request.command) {
+    case 'collapse-all':
+      toggleAllMessages(true);
+      break;
+    case 'expand-all':
+      toggleAllMessages(false);
+      break;
+  }
+});

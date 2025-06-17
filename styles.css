@@ -64,3 +64,22 @@
 .ds-collapse-action-btn.collapsed {
   --ds-icon-button-text-color: #1a73e8; /* 折叠状态下的颜色 */
 }
+
+/* 快捷键操作时的视觉反馈 */
+.ds-collapse-feedback {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 4px;
+  z-index: 1000;
+  animation: ds-fadeout 2s forwards;
+}
+
+@keyframes ds-fadeout {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
