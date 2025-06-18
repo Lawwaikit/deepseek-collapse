@@ -32,17 +32,34 @@ const STORAGE_KEYS = {
   STATES: 'dsCollapseStates'
 };
 
+const URL_PATTERN = /([a-f0-9-]{36})/i;
+
 // ======================
 // 核心管理器
 // ======================
 const CollapseManager = {
+
+  currentConversationId: getCurrentConversationId(),
+  selectors: {
+    userMessages: `.${USER.MESSAGE}`,
+    aiMessages: `.${AI.MESSAGE}`,
+    allMessages: `.${USER.MESSAGE}, .${AI.MESSAGE}`,
+    buttonGroups: `.${USER.BUTTON_GROUP}, .${AI.BUTTON_GROUP}`,
+    userParents: `.${USER.PARENT}`,
+    aiParents: `.${AI.PARENT}`,
+    allParents: `.${USER.PARENT}, .${AI.PARENT}`
+  },
   // 初始化方法
   init() {
-    this.initSelectors();
+    // this.initSelectors();
     this.setupEventListeners();
-    this.initObserver();
-    // 修改为延迟恢复状态
-    setTimeout(() => this.restoreStates(), 500);
+    this.setupUrlChangeListener(); // 先设置URL监听
+
+    // 延迟初始化确保DOM加载
+    setTimeout(() => {
+      this.initObserver();
+      this.initMessagesForCurrentConversation();
+    }, 300);
     console.log('DeepSeek Collapser initialized');
   },
 
@@ -64,7 +81,7 @@ const CollapseManager = {
     chrome.runtime.onMessage.addListener(this.toggleAllMessagesListener.bind(this));
   },
 
-  // 运行时消息处理
+  // 键盘快捷键监听器
   toggleAllMessagesListener(request, sender, sendResponse) {
     switch (request.command) {
       case 'collapse-all': this.toggleAllMessages(true); break;
@@ -90,21 +107,69 @@ const CollapseManager = {
     });
   },
 
+  // 添加URL变化监听
+  setupUrlChangeListener() {
+    let lastConversationId = getCurrentConversationId();
+
+    const checkUrlChange = () => {
+      const currentId = getCurrentConversationId();
+      if (currentId !== lastConversationId) {
+        lastConversationId = currentId;
+        this.handleConversationChange(currentId);
+      }
+      setTimeout(checkUrlChange, 500);
+    };
+
+    checkUrlChange();
+  },
+
+  // 处理对话切换
+  handleConversationChange(newConversationId) {
+    console.log(`Conversation changed to ${newConversationId}`);
+
+    // 1. 清理旧消息的折叠状态
+    document.querySelectorAll(`.${DS.PREFIX}btn`).forEach(btn => btn.remove());
+
+    // 2. 初始化新对话的消息
+    this.initMessagesForCurrentConversation();
+  },
+
+  // 初始化当前对话消息
+  initMessagesForCurrentConversation() {
+    // 处理现有消息
+    document.querySelectorAll(this.selectors.allMessages).forEach(msg => {
+      this.processMessageElement(msg);
+    });
+
+    // 设置重试机制处理动态加载
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    const tryInit = () => {
+      const unprocessed = Array.from(document.querySelectorAll(this.selectors.allMessages))
+        .filter(msg => !msg.id);
+
+      if (unprocessed.length === 0 || attempts >= maxAttempts) return;
+
+      attempts++;
+      unprocessed.forEach(msg => this.processMessageElement(msg));
+      setTimeout(tryInit, 300 * attempts);
+    };
+
+    tryInit();
+  },
+
   // 处理新元素
   handleNewElements(node) {
     // 处理新消息
     const messages = node.querySelectorAll(this.selectors.allMessages);
     messages.forEach(msg => this.processMessageElement(msg));
 
-    // 处理新按钮组
-    // const buttonGroups = node.querySelectorAll(this.selectors.buttonGroups);
-    // buttonGroups.forEach(group => {
-    //   const parent = group.closest(this.selectors.allParents);
-    //   if (parent) {
-    //     const message = parent.querySelector(this.selectors.allMessages);
-    //     if (message) this.addCollapseActionButton(parent, message);
-    //   }
-    // });
+    // 处理已有消息但未初始化的情况
+    if (node.matches(this.selectors.allParents)) {
+      const message = node.querySelector(this.selectors.allMessages);
+      if (message) this.processMessageElement(message);
+    }
   },
 
   // 处理消息元素
@@ -115,26 +180,14 @@ const CollapseManager = {
     // 确保有ID
     messageElement.id = messageElement.id || this.generateMessageId(messageElement);
 
-    // 添加折叠按钮
+    // 添加右上角折叠按钮
     this.addCollapseButton(parent, messageElement);
-
-    // 添加动作按钮
+    // 添加按钮组按钮
     this.addCollapseActionButton(parent, messageElement)
-    // setTimeout(() => this.addCollapseActionButton(parent, messageElement), 100);
 
-    this.getCollapseState(messageElement.id).then(isCollapsed => {
-      if (isCollapsed) this.toggleCollapse(messageElement, true);
-    });
-  },
-
-  // 恢复折叠状态
-  async restoreStates() {
-    const states = await this.getCollapseStates();
-    const allMessages = document.querySelectorAll(this.selectors.allMessages)
-    document.querySelectorAll(this.selectors.allMessages).forEach(msg => {
-      if (states[msg.id]) {
-        this.toggleCollapse(msg, true, { isInitializing: true, skipSave: true });
-      }
+    // 恢复该消息的状态
+    StateStorageManager.getCollapseState(messageElement.id).then(isCollapsed => {
+      this.toggleCollapse(messageElement, isCollapsed, { isInitializing: true });
     });
   },
 
@@ -142,25 +195,20 @@ const CollapseManager = {
   // 核心功能方法
   // ======================
 
-  // 生成消息ID ok
+  // 生成消息ID
   generateMessageId(element) {
+    if (element.id) return
+
     const isUser = element.classList.contains(USER.MESSAGE);
-    // 用户消息：使用固定class + 索引
     if (isUser) {
       const userMessages = document.querySelectorAll(this.selectors.userMessages);
       const index = Array.from(userMessages).indexOf(element);
-      return `ds-collapse-user-${index}`;
+      return `${DS.PREFIX}${index}-A-USER`;
     }
     else {
-      // AI消息使用内容hash
-      const content = element.textContent.trim();
-      let hash = 0;
-      for (let i = 0; i < content.length; i++) {
-        const char = content.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash |= 0;
-      }
-      return `ds-collapse-${Math.abs(hash).toString(36)}`;
+      const aiMessages = document.querySelectorAll(this.selectors.aiMessages);
+      const index = Array.from(aiMessages).indexOf(element);
+      return `${DS.PREFIX}${index}-B-AI`;
     }
   },
 
@@ -173,12 +221,12 @@ const CollapseManager = {
     btn.className = DS.CLASSES.BTN;
     btn.textContent = '折叠';
     btn.dataset.targetId = messageElement.id;
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const shouldCollapse = !messageElement.classList.contains(DS.CLASSES.COLLAPSED);
       this.toggleCollapse(messageElement, shouldCollapse);
     });
-
+  
     parent.appendChild(btn);
   },
 
@@ -207,21 +255,13 @@ const CollapseManager = {
       e.stopPropagation();
       const shouldCollapse = !messageElement.classList.contains(DS.CLASSES.COLLAPSED);
       this.toggleCollapse(messageElement, shouldCollapse);
-      await this.setCollapseState(messageElement.id, shouldCollapse);
     });
 
     buttonGroup.appendChild(btn);
-
-    // // 初始状态
-    // this.getCollapseState(messageElement.id).then(isCollapsed => {
-    //   if (isCollapsed) {
-    //     this.updateButtonState(btn, true);
-    //   }
-    // });
   },
 
-  // 更新按钮状态 ok
-  updateButtonState(button, isCollapsed) {
+  // 更新按钮组按钮状态
+  updateActionButtonState(button, isCollapsed) {
     if (!button) return;
 
     button.classList.toggle('collapsed', isCollapsed);
@@ -237,21 +277,41 @@ const CollapseManager = {
     }
   },
 
+  // 更新深度思考状态
+  updateDeepThinkState(parent, shouldCollapse) {
+    // 深度思考按钮
+    const deepThinkBtn = parent.querySelector(`.${DEEP_THINKING.CONTAINER}`);
+    if (!deepThinkBtn) return
+
+    // 找到箭头
+    var arrowEle = deepThinkBtn.querySelector('._54f4262')
+    if (!arrowEle) return
+
+    // 0deg是深度思考折叠状态, 180deg为深度思考展开状态
+    const isExpand = arrowEle.style.transform == 'rotate(180deg)'
+    // 如果应该折叠,并且当前为展开
+    if (shouldCollapse && isExpand) deepThinkBtn.click()
+  },
+
   // 切换折叠状态
   async toggleCollapse(element, shouldCollapse, options = {}) {
     const { skipSave = false, isInitializing = false } = options;
     const parent = element.closest(this.selectors.allParents);
     if (!parent) return;
 
-    // 更新UI状态
+    // 更新消息UI状态
     element.classList.toggle(DS.CLASSES.COLLAPSED, shouldCollapse);
 
-    // 更新按钮
+    // 获取按钮
     const topBtn = parent.querySelector(`.${DS.CLASSES.BTN}`);
     const actionBtn = parent.querySelector(`.${DS.CLASSES.ACTION_BTN}`);
 
+    // 切换右上方按钮状态
     if (topBtn) topBtn.textContent = shouldCollapse ? '展开' : '折叠';
-    this.updateButtonState(actionBtn, shouldCollapse);
+    // 切换按钮组按钮状态
+    this.updateActionButtonState(actionBtn, shouldCollapse);
+    // 切换深度思考状态
+    this.updateDeepThinkState(parent, shouldCollapse)
 
     // 处理折叠指示器
     if (shouldCollapse) {
@@ -266,9 +326,9 @@ const CollapseManager = {
       if (indicator) indicator.remove();
     }
 
-    // 保存状态
-    if (!skipSave) {
-      await this.setCollapseState(element.id, shouldCollapse);
+    // 非指定跳过且非初始化时,才保存
+    if (!skipSave && !isInitializing) {
+      await StateStorageManager.setCollapseState(element.id, shouldCollapse, getCurrentConversationId());
     }
   },
 
@@ -278,12 +338,7 @@ const CollapseManager = {
 
     // 1. 先执行所有UI更新
     const messages = document.querySelectorAll(this.selectors.allMessages);
-    messages.forEach(msg => {
-      const currentState = msg.classList.contains(DS.CLASSES.COLLAPSED);
-      if (currentState !== shouldCollapse) {
-        this.toggleCollapse(msg, shouldCollapse, { skipSave: true });
-      }
-    });
+    messages.forEach(msg => this.toggleCollapse(msg, shouldCollapse, { skipSave: true }));
 
     // 2. 收集所有状态后单次存储
     const newStates = {};
@@ -292,26 +347,10 @@ const CollapseManager = {
     });
 
     // 3. 单次写入（原子操作）
-    await this.setCollapseStates(newStates);
-    // 4.处理深度思考组件（仅折叠时）
-    if (shouldCollapse) {
-      // 深度思考组件
-      const deepThinkingComponents = document.querySelectorAll(`.${DEEP_THINKING.CONTAINER}`);
-      deepThinkingComponents.forEach(component => {
-        // 找到箭头
-        var arrowEle = component.querySelector('._54f4262')
-        if (arrowEle) {
-          ///0是深度思考折叠状态,180为展开
-          const isCollapse = arrowEle.style.transform == 'rotate(0deg)'
-          if (!isCollapse) {
-            component.click()
-          }
-        }
-      });
-    }
+    await StateStorageManager.setCollapseStates(newStates, getCurrentConversationId());
   },
 
-  // 显示反馈提示 ok
+  // 显示反馈提示
   showFeedback(message) {
     const existing = document.querySelector(`.${DS.CLASSES.FEEDBACK}`);
     if (existing) existing.remove();
@@ -323,43 +362,67 @@ const CollapseManager = {
 
     setTimeout(() => feedback.remove(), 2000);
   },
+}
 
-  // ======================
-  // 存储相关方法
-  // ======================
+// ======================
+// 存储管理器
+// ======================
+const StateStorageManager = {
+  // 获取存储键名
+  getStorageKey(conversationId = getCurrentConversationId()) {
+    return `${STORAGE_KEYS.STATES}_${conversationId}`;
+  },
 
-  async getCollapseStates() {
+  // 获取当前对话的所有状态
+  async getCollapseStates(conversationId) {
     return new Promise(resolve => {
-      chrome.storage.local.get([STORAGE_KEYS.STATES], result => {
-        resolve(result[STORAGE_KEYS.STATES] || {});
+      const storageKey = this.getStorageKey(conversationId)
+      chrome.storage.local.get([storageKey], result => {
+        resolve(result[storageKey] || {});
       });
     });
   },
 
-  async getCollapseState(id) {
-    const states = await this.getCollapseStates();
+  // 获取单个消息状态
+  async getCollapseState(id, conversationId) {
+    const states = await this.getCollapseStates(conversationId);
     return states[id] || false;
   },
 
-  async setCollapseState(id, state) {
-    const current = await this.getCollapseStates();
+  // 设置单个消息状态
+  async setCollapseState(id, state, conversationId) {
+    const current = await this.getCollapseStates(conversationId);
+    return new Promise(resolve => {
+      const storageKey = this.getStorageKey(conversationId)
+      chrome.storage.local.set({[storageKey]: { ...current, [id]: state }}, resolve);
+    });
+  },
+
+  // 批量设置状态
+  async setCollapseStates(states, conversationId) {
+    const current = await this.getCollapseStates(conversationId);
     return new Promise(resolve => {
       chrome.storage.local.set({
-        [STORAGE_KEYS.STATES]: { ...current, [id]: state }
+        [this.getStorageKey(conversationId)]: { ...current, ...states }
       }, resolve);
     });
   },
 
-  // 新增批量存储方法
-  async setCollapseStates(states) {
-    const current = await this.getCollapseStates();
+  // 清除某个对话的状态
+  async clearConversationStates(conversationId) {
     return new Promise(resolve => {
-      chrome.storage.local.set({
-        [STORAGE_KEYS.STATES]: { ...current, ...states }
-      }, resolve);
+      const storageKey = this.getStorageKey(conversationId)
+      chrome.storage.local.remove(storageKey, resolve);
     });
   }
 };
+
+// 获取当前对话UUID
+function getCurrentConversationId() {
+  const match = window.location.pathname.match(URL_PATTERN);
+  return match ? match[1] : 'default';
+}
+
 
 // ======================
 // 初始化入口
