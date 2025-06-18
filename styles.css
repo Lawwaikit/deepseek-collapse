@@ -83,3 +83,36 @@
   80% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* 代码块折叠样式 */
+.md-code-block.collapsed{
+  max-height: 70px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 代码块折叠按钮样式 */
+.code-block-collapse-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  height: 28px;
+  font-size: 13px;
+  color: var(--dsr-text-2);
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.code-block-collapse-btn .icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+.code-block-collapse-btn .icon svg {
+  transform: rotate(180deg);
+}
+
+.code-block-collapse-btn.collapsed .icon svg {
+  transform: rotate(0deg);
+}

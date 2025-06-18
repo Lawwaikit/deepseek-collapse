@@ -28,6 +28,12 @@ const DEEP_THINKING = {
   CONTAINER: '_58a6d71'
 };
 
+const CODE_BLOCK = {
+  CONTAINER: 'md-code-block',
+  BUTTON_GROUP: 'efa13877',
+  COLLAPSE_BTN: 'code-block-collapse-btn'
+};
+
 const STORAGE_KEYS = {
   STATES: 'dsCollapseStates'
 };
@@ -184,6 +190,8 @@ const CollapseManager = {
     this.addCollapseButton(parent, messageElement);
     // 添加按钮组按钮
     this.addCollapseActionButton(parent, messageElement)
+    // 消息内各代码块添加折叠按钮
+    this.addCodeBlocksButton(parent);
 
     // 恢复该消息的状态
     StateStorageManager.getCollapseState(messageElement.id).then(isCollapsed => {
@@ -226,7 +234,7 @@ const CollapseManager = {
       const shouldCollapse = !messageElement.classList.contains(DS.CLASSES.COLLAPSED);
       this.toggleCollapse(messageElement, shouldCollapse);
     });
-  
+
     parent.appendChild(btn);
   },
 
@@ -257,6 +265,50 @@ const CollapseManager = {
       this.toggleCollapse(messageElement, shouldCollapse);
     });
 
+    buttonGroup.appendChild(btn);
+  },
+
+  // 处理代码块
+  addCodeBlocksButton(parentElement) {
+    const codeBlocks = parentElement.querySelectorAll(`.${CODE_BLOCK.CONTAINER}`);
+    codeBlocks.forEach(block => {
+      this.addCodeBlockCollapseButton(block);
+    });
+  },
+
+  // 添加代码块折叠按钮
+  addCodeBlockCollapseButton(codeBlock) {
+    const buttonGroup = codeBlock.querySelector(`.${CODE_BLOCK.BUTTON_GROUP}`);
+    if (!buttonGroup || buttonGroup.querySelector(`.${CODE_BLOCK.COLLAPSE_BTN}`)) return;
+
+    const btn = document.createElement('div');
+    btn.className = `${CODE_BLOCK.COLLAPSE_BTN} ds-button ds-button--secondary ds-button--borderless ds-button--rect ds-button--m _7db3914`;
+    btn.tabIndex = 0;
+    btn.style.marginLeft = '8px';
+    btn.style.fontSize = '13px';
+    btn.style.height = '28px';
+    btn.style.padding = '0px 4px';
+    btn.style.setProperty('--button-text-color', 'var(--dsr-text-2)');
+
+    btn.innerHTML = `
+      <div class="ds-button__icon">
+        <div class="ds-icon icon" style="font-size: 16px; width: 16px; height: 16px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 10l5 5 5-5H7z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+      <span class="code-info-button-text">折叠</span>
+    `;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCollapsed = codeBlock.classList.toggle('collapsed');
+      btn.querySelector('.code-info-button-text').textContent = isCollapsed ? '展开' : '折叠';
+      btn.classList.toggle('collapsed', isCollapsed);
+    });
+
+    // 增加按钮
     buttonGroup.appendChild(btn);
   },
 
@@ -394,7 +446,7 @@ const StateStorageManager = {
     const current = await this.getCollapseStates(conversationId);
     return new Promise(resolve => {
       const storageKey = this.getStorageKey(conversationId)
-      chrome.storage.local.set({[storageKey]: { ...current, [id]: state }}, resolve);
+      chrome.storage.local.set({ [storageKey]: { ...current, [id]: state } }, resolve);
     });
   },
 
